@@ -33,7 +33,7 @@ void setup()
     input_led_test();
 
     setup_volume_leds();
-    volume_led_test();
+    volume_led_test();ardu
 }
 
 void loop()
