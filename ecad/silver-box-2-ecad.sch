@@ -1,0 +1,171 @@
+EESchema Schematic File Version 4
+LIBS:silver-box-2-ecad-cache
+EELAYER 30 0
+EELAYER END
+$Descr A4 11693 8268
+encoding utf-8
+Sheet 1 6
+Title ""
+Date ""
+Rev ""
+Comp ""
+Comment1 ""
+Comment2 ""
+Comment3 ""
+Comment4 ""
+$EndDescr
+$Sheet
+S 7000 4500 1500 1000
+U 5DEACFAE
+F0 "Volume Path L" 50
+F1 "Volume Path L.sch" 50
+F2 "SCL" I L 7000 5150 50 
+F3 "SDA" B L 7000 5050 50 
+F4 "~SHDN_DPot" I L 7000 5400 50 
+F5 "InLP" I L 7000 4650 50 
+F6 "InLN" I L 7000 4750 50 
+F7 "OutLP" O R 8500 4900 50 
+F8 "OutLN" O R 8500 5100 50 
+$EndSheet
+$Sheet
+S 3500 4500 1500 1000
+U 5DEDAA96
+F0 "MCU" 50
+F1 "MCU.sch" 50
+F2 "SDA" B R 5000 5050 50 
+F3 "SCL" O R 5000 5150 50 
+F4 "~Reset_GPIOX" O R 5000 5300 50 
+F5 "~SHDN_DPot" O R 5000 5400 50 
+$EndSheet
+$Sheet
+S 5500 1500 1000 1000
+U 5D77A748
+F0 "Power" 50
+F1 "Power.sch" 50
+$EndSheet
+$Sheet
+S 7000 3000 1500 1000
+U 5D7492AA
+F0 "Volume Path R" 50
+F1 "Volume Path R.sch" 50
+F2 "SCL" I L 7000 3750 50 
+F3 "SDA" B L 7000 3650 50 
+F4 "~SHDN_Pot" I L 7000 3850 50 
+F5 "InRP" I L 7000 3150 50 
+F6 "InRN" I L 7000 3250 50 
+F7 "OutRP" O R 8500 3400 50 
+F8 "OutRN" O R 8500 3600 50 
+$EndSheet
+$Sheet
+S 3500 3000 1500 1000
+U 5D79F9F4
+F0 "Input Switching" 50
+F1 "Input Switching.sch" 50
+F2 "OutRP" O R 5000 3150 50 
+F3 "OutRN" O R 5000 3250 50 
+F4 "OutLP" O R 5000 3400 50 
+F5 "OutLN" O R 5000 3500 50 
+F6 "SDA" B R 5000 3650 50 
+F7 "SCL" I R 5000 3750 50 
+F8 "~Reset_GPIOX" I R 5000 3850 50 
+$EndSheet
+Wire Wire Line
+	5000 5400 6800 5400
+Wire Wire Line
+	7000 5050 5000 5050
+Wire Wire Line
+	5000 5150 7000 5150
+Wire Wire Line
+	5000 3150 7000 3150
+Wire Wire Line
+	7000 3250 5000 3250
+Wire Wire Line
+	5000 3650 7000 3650
+Wire Wire Line
+	5000 3750 7000 3750
+Wire Wire Line
+	5000 3400 6600 3400
+Wire Wire Line
+	6600 3400 6600 4650
+Wire Wire Line
+	6600 4650 7000 4650
+Wire Wire Line
+	5000 3500 6500 3500
+Wire Wire Line
+	6500 3500 6500 4750
+Wire Wire Line
+	6500 4750 7000 4750
+Wire Wire Line
+	5000 5300 5200 5300
+Wire Wire Line
+	5200 5300 5200 3850
+Wire Wire Line
+	5200 3850 5000 3850
+Wire Wire Line
+	6800 3850 6800 5400
+Connection ~ 6800 5400
+Wire Wire Line
+	6800 5400 7000 5400
+$Comp
+L amphenol_acjs-mhd:Amphenol_ACJS-MHD* J?
+U 2 1 5D9B424F
+P 9200 5100
+F 0 "J?" H 8870 5000 50  0000 R CNN
+F 1 "Amphenol_ACJS-MHD*" H 8870 5091 50  0000 R CNN
+F 2 "" H 9150 5100 50  0001 C CNN
+F 3 "http://www.amphenolaudio.com/products/14-2/m-series-double/" H 9150 5100 50  0001 C CNN
+	2    9200 5100
+	-1   0    0    1   
+$EndComp
+Wire Wire Line
+	9000 4900 8500 4900
+Wire Wire Line
+	9000 5300 8900 5300
+Wire Wire Line
+	8900 5300 8900 5400
+$Comp
+L power:GND #PWR?
+U 1 1 5D9B98CD
+P 8900 5400
+F 0 "#PWR?" H 8900 5150 50  0001 C CNN
+F 1 "GND" H 8905 5227 50  0000 C CNN
+F 2 "" H 8900 5400 50  0001 C CNN
+F 3 "" H 8900 5400 50  0001 C CNN
+	1    8900 5400
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	6800 3850 7000 3850
+Wire Wire Line
+	8500 5100 9000 5100
+Wire Wire Line
+	8500 3600 9000 3600
+Wire Wire Line
+	8900 3800 9000 3800
+Wire Wire Line
+	8900 3900 8900 3800
+$Comp
+L power:GND #PWR?
+U 1 1 5D9B9B7C
+P 8900 3900
+F 0 "#PWR?" H 8900 3650 50  0001 C CNN
+F 1 "GND" H 8905 3727 50  0000 C CNN
+F 2 "" H 8900 3900 50  0001 C CNN
+F 3 "" H 8900 3900 50  0001 C CNN
+	1    8900 3900
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	8500 3400 9000 3400
+$Comp
+L amphenol_acjs-mhd:Amphenol_ACJS-MHD* J?
+U 1 1 5D9B278B
+P 9200 3600
+F 0 "J?" H 8870 3500 50  0000 R CNN
+F 1 "Amphenol_ACJS-MHD*" H 8870 3591 50  0000 R CNN
+F 2 "" H 9150 3600 50  0001 C CNN
+F 3 "http://www.amphenolaudio.com/products/14-2/m-series-double/" H 9150 3600 50  0001 C CNN
+	1    9200 3600
+	-1   0    0    1   
+$EndComp
+$EndSCHEMATC
