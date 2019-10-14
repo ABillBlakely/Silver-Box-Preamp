@@ -1,71 +1,166 @@
 #include <stdio.h>
 
-const uint8_t INPUTS_NUM = 4;
-const uint8_t input_led_gpios[INPUTS_NUM] = {32, 33, 25, 26};
-const uint8_t input_led_channels[INPUTS_NUM] = {1, 2, 3, 4};
+/*
+On Naming Convention:
+Device will have 4 physical HID elements:
+    1. Volume knob
+    2. Volume indication LEDs
+    3. source switch button
+    4. source indicator LEDs
+There are additional virtual (smart home) HID elements:
+    1. Volume remote control
+    2. source remote control
+Virtual elements will use the same indicator elements.
+
+Variable names should indicate the function (volume, source) and device type
+(led, adc, button, mqtt). Structs should be used to organize related information
+together.
+
+global variables should be prefixed with g_
+global constants should be all uppercase.
+
+variables values that have meaningful units should have the unit as a suffix to
+the variable. I.E. xxx_dB, xxx_percent, xxx_Hz etc.
+*/
+
+//
+// SOURCE SELECTION:
+//
+
+struct
+{
+    uint8_t value = 0;
+    const uint8_t gpio = 5;
+    const uint8_t mode = INPUT_PULLUP;
+} source_button;
+
+
+const uint8_t SOURCE_NUM = 4;
+
+struct
+{
+    const uint8_t gpios[SOURCE_NUM] = {32, 33, 25, 26};
+    const uint8_t channels[SOURCE_NUM] = {1, 2, 3, 4};
+} source_leds;
+
+//
+// VOLUME CONTROL:
+//
 
 const uint32_t VOLUME_LED_NUM = 7;
-const uint8_t volume_led_gpios[VOLUME_LED_NUM] = {16, 17, 18, 19, 23, 27, 13};
-const uint8_t volume_led_channels[VOLUME_LED_NUM] = {5, 6, 7, 8, 9, 10, 11};
+
+struct
+{
+    const uint8_t gpios[VOLUME_LED_NUM] = {16, 17, 18, 19, 23, 27, 13};
+    const uint8_t channels[VOLUME_LED_NUM] = {5, 6, 7, 8, 9, 10, 11};
+} volume_leds;
+
+struct
+{
+    const uint8_t gpio = 36;
+    const uint8_t resolution = 12;
+} volume_adc;
+
+// maximum reduction that can be set, as a negative dB value.
+const int8_t g_vol_min_dB = -60;
+
+//
+// OTHER:
+//
+
+const uint16_t g_led_pwm_freq = 25000;
+const uint8_t g_led_resolution_bits = 10;
 
 const uint8_t builtin_led_gpio = 2;
 const uint8_t builtin_led_channel = 15;
 
-const uint16_t led_pwm_freq = 25000;
-const uint8_t led_resolution_bits = 10;
+const uint8_t LOCAL = 0;
+const uint8_t REMOTE = 1;
 
-// maximum reduction that can be set, as a negative dB value.
-const int8_t vol_min_dB = -60;
-
-const uint8_t adc_pin = 36;
-const uint8_t adc_resolution = 12;
 
 // The global led maximum brightness
-uint8_t led_max_brightness_percent = 10;
+uint8_t g_led_max_brightness_percent = 100;
 
-uint8_t vol_dB = vol_min_dB;
+uint8_t vol_dB = g_vol_min_dB;
+uint8_t vol_dB_local = g_vol_min_dB;
+uint8_t vol_dB_remote = g_vol_min_dB;
+uint8_t volume_control = LOCAL;
 
 void setup()
 {
     // put your setup code here, to run once:
+    pinMode(source_button.gpio, source_button.mode);
 
     Serial.begin(115200);
 
     ledcAttachPin(builtin_led_gpio, builtin_led_channel);
-    ledcSetup(builtin_led_channel, led_pwm_freq, led_resolution_bits);
+    ledcSetup(builtin_led_channel, g_led_pwm_freq, g_led_resolution_bits);
 
-    setup_input_leds();
-    input_led_test();
+    source_led_setup();
+    source_led_test();
 
-    setup_volume_leds();
+    volume_led_setup();
     volume_led_test();
 
-    setup_adc();
+    volume_adc_setup();
 
 }
 
 void loop()
 {
-    // adcStart(adc_pin);
+    static uint8_t source_select = 0;
 
-    // while(adcBusy(adc_pin)){}
+    source_button.value = !digitalRead(source_button.gpio);
+    Serial.println(source_button.value);
+    if (source_button.value)
+    {
+        source_led_off(source_select);
+        source_select++;
+        if (source_select >= SOURCE_NUM)
+        {
+            source_select = 0;
+        }
+        source_led_on(source_select);
+        delay(200);
+    }
 
-    // uint16_t val = adcEnd(adc_pin);
-    vol_dB = read_volume();
-    volume_led(vol_dB);
+    // Read volume potentiometer
+    vol_dB = read_volume_adc();
 
-    // put your main code here, to run repeatedly:
-    // volume_led_test();
+    // Set leds to match
+    volume_led_set(vol_dB);
 
-    // TODO: use hall effect sensor as button for input switch and test that.
-    // Get pot and use to set volume.
+    // int16_t val = hallRead();
+    // Serial.println(val);
 }
 
-int8_t read_volume()
+int8_t read_volume_adc()
 {
-    uint16_t val = analogRead(adc_pin);
-    uint16_t inverted = (1<<adc_resolution) - 1 - val;
-    int8_t vol_dB = ((inverted * vol_min_dB) >> adc_resolution);
+    static int8_t previous_local_vol_dB = g_vol_min_dB;
+    static int8_t previous_remote_vol_dB = g_vol_min_dB;
+
+    // TODO: This value to come from mqtt server.
+    int8_t remote_vol_dB = g_vol_min_dB;
+
+    uint16_t val = analogRead(volume_adc.gpio);
+    uint16_t inverted = (1<<volume_adc.resolution) - 1 - val;
+    int8_t local_vol_dB = ((inverted * g_vol_min_dB) >> volume_adc.resolution);
+
+
+    // Check for values changing to decide whether local or remote control should be used.
+    if (local_vol_dB != previous_local_vol_dB)
+    {
+        vol_dB = local_vol_dB;
+    }
+    else if (remote_vol_dB != previous_remote_vol_dB)
+    {
+        vol_dB = remote_vol_dB;
+    }
+    else
+    {
+        vol_dB = g_vol_min_dB;
+    }
+
     return vol_dB;
 
     // // DEBUG info:
@@ -75,7 +170,7 @@ int8_t read_volume()
     // Serial.println(line);
 }
 
-void setup_adc()
+void volume_adc_setup()
 {
     // ADC Reference voltage is 1.1 V +/-10%;
     // There may be a way to calibrate this...
@@ -83,7 +178,7 @@ void setup_adc()
 
     // // set the sample bits and resolution. It can be a value between 9 (0 – 511) and 12
     // // bits (0 – 4095). Default is 12-bit resolution.
-    analogReadResolution(adc_resolution);
+    analogReadResolution(volume_adc.resolution);
 
     // // set the sample bits and resolution. It can be a value between 9 (0 – 511) and 12 bits (0 –
     // // 4095). Default is 12-bit resolution.
@@ -126,86 +221,90 @@ void setup_adc()
 uint16_t led_brightness_percent_to_value(uint8_t led_brightness_percent)
 {
     uint16_t brightness;
-    brightness = (led_brightness_percent << led_resolution_bits) / 100;
+    brightness = (led_brightness_percent << g_led_resolution_bits) / 100;
     // Serial.print("Computed brightness value: ");
     // Serial.println(brightness);
     return brightness;
 }
 
-void input_led_test()
+void source_led_test()
 {
-    for (int jj=0; jj < INPUTS_NUM; jj++)
+    for (int jj=0; jj < SOURCE_NUM; jj++)
     {
         Serial.print("Turning on input ");
         Serial.println(jj);
-        input_led_on(jj);
-        delay(100);
+        source_led_on(jj);
+        delay(250);
         Serial.print("Turning off input ");
         Serial.println(jj);
-        input_led_off(jj);
+        source_led_off(jj);
     }
 }
 
-void setup_input_leds()
+void source_led_setup()
 {
-    for (int kk=0; kk < INPUTS_NUM; kk++)
+    for (int kk=0; kk < SOURCE_NUM; kk++)
     {
-        ledcAttachPin(input_led_gpios[kk],
-                      input_led_channels[kk]);
+        ledcAttachPin(source_leds.gpios[kk],
+                      source_leds.channels[kk]);
 
-        ledcSetup(input_led_channels[kk],
-                  led_pwm_freq,
-                  led_resolution_bits);
+        ledcSetup(source_leds.channels[kk],
+                  g_led_pwm_freq,
+                  g_led_resolution_bits);
     }
+    source_led_on(0);
 }
 
-void input_led_on(uint8_t input_num)
+void source_led_on(uint8_t input_num)
 {
     // Function to control the input leds.
     // Separate function so that fade-ins/outs or
-    // other details can be easily addedlater
-    ledcWrite(input_led_channels[input_num],
-              led_brightness_percent_to_value(led_max_brightness_percent));
+    // other details can be easily added later
+    ledcWrite(source_leds.channels[input_num],
+              led_brightness_percent_to_value(g_led_max_brightness_percent));
 }
 
-void input_led_off(uint8_t input_num)
+void source_led_off(uint8_t input_num)
 {
     // turn input leds off. Should fade out in future.
-    ledcWrite(input_led_channels[input_num], 0);
+    ledcWrite(source_leds.channels[input_num], 0);
 }
 
 
-void setup_volume_leds()
+void volume_led_setup()
 {
     for (int kk=0; kk < VOLUME_LED_NUM; kk++)
     {
-        ledcAttachPin(volume_led_gpios[kk],
-                      volume_led_channels[kk]);
+        ledcAttachPin(volume_leds.gpios[kk],
+                      volume_leds.channels[kk]);
 
-        ledcSetup(volume_led_channels[kk],
-                  led_pwm_freq,
-                  led_resolution_bits);
+        ledcSetup(volume_leds.channels[kk],
+                  g_led_pwm_freq,
+                  g_led_resolution_bits);
     }
 }
 
 void volume_led_test()
 {
-    for (int volume = vol_min_dB; volume <= 0; volume++)
+    for (int volume = g_vol_min_dB; volume <= 0; volume++)
     {
-        volume_led(volume);
-        //delay(100);
+        volume_led_set(volume);
+        delay(10);
     }
     delay(500);
-    volume_led(vol_min_dB);
+    volume_led_set(g_vol_min_dB);
 }
 
-void volume_led(int8_t vol_dB)
+void volume_led_set(int8_t vol_dB)
 {
-    // vol_dB is a negative value from 0 to vol_min_dB
-    uint8_t scale = -1 * vol_min_dB;
+    // This function computes and sets the brightness of the volume indicating leds.
+    // There is a lot of opportunity for optimization and UI Tweaking here.
+
+    // vol_dB is a negative value from 0 to g_vol_min_dB
+    uint8_t scale = -1 * g_vol_min_dB;
 
     // find maximum broghtness value:
-    uint32_t max_brightness = led_brightness_percent_to_value(led_max_brightness_percent);
+    uint32_t max_brightness = led_brightness_percent_to_value(g_led_max_brightness_percent);
 
     // Overscaling minimizes roundoff error.
     uint32_t overscale = 10;
@@ -229,37 +328,27 @@ void volume_led(int8_t vol_dB)
             vol[qq] = max_brightness >> overscale;
             steps -= max_brightness;
         }
-        else if (steps <= 0)
+        else if (steps > 0)
         {
-            if ( (qq > 0) && (vol[qq-1] > max_brightness >> (overscale + 1)) )
-            {
-                // add some pre lighting if previous value was over halfway
-                vol[qq] = vol[qq-1] >> (overscale + 1);
-            }
-            else
-            {
-                vol[qq] = 0;
-            }
+            vol[qq] = steps >> overscale;
+            steps = 0;
         }
         else
         {
-            vol[qq] = steps >> overscale;
-
-            steps = 0;
+            vol[qq] = 0;
         }
-        delay(1);
-        // Serial.print("Computed Brightness: ");
-        // Serial.println(vol[qq]);
     }
-
     for (int qq = 0; qq < VOLUME_LED_NUM; qq++)
     {
-        ledcWrite(volume_led_channels[qq], vol[qq]);
+        // Serial.print("Computed Brightness: ");
+        // Serial.println(vol[qq]);
+        // delay(1);
+        ledcWrite(volume_leds.channels[qq], vol[qq]);
     }
     // DEBUG INFO
     // char values[80];
-    // sprintf(values, "%d, %d, %d", scale, full_scale, remainder);
     // Serial.print("scale, full_scale, step, remainder: ");
+    // sprintf(values, "%d, %d, %d", scale, full_scale, remainder);
     // Serial.println(values);
 }
 
